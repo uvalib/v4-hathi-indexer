@@ -1,0 +1,128 @@
+#!/bin/bash
+## This file is a script that will fetch ALL of the publically accessible bibliographic records from
+## the HathiTrust.  To start you need to fetch a list of all of the Hathi items using a URL like:  
+##  
+##   http://www.hathitrust.org/sites/www.hathitrust.org/files/hathifiles/hathi_full_20111001.txt.gz
+## 
+## Then process that list to extract all of the Hathi recordnumbers for the publically accessible 
+## items and sort them in ascending order, using the following commands:
+##  
+##    gunzip hathi_full_20111001.txt.gz 
+##    cat hathi_full_20111001.txt | cut -f 2,4 | egrep '^allow' | cut -f 2 | sort | uniq > hathi_full_20111001_recordnumber.txt
+##  
+## Note:  The sort and uniq commands are important so that the resulting full-dump of records are in order
+##        which is needed so that new or updated records can be merged into the full-dump.
+##  
+## Once you have the large file of records numbers you can run this command to actually fetch the 
+## bibliographic records that correspond to those recordnumbers, with this script:
+##   
+##    mkdir full_dump
+##    fetch_all_recs hathi_full_20111001_recordnumber.txt ./full_dump 
+##    
+## This script will then retrieve the bibliographic records and write them in chunks of about 50000 records
+## named hathi_DDD.mrc to the specified directory.  
+## 
+## If for some reason the script terminates before it finishes you can specify a starting point for the 
+## fetching process.  If the fetch was stopped during chunk 008, when you restart it you can do:
+##  
+##    fetch_all_recs hathi_full_20111001_recordnumber.txt ./full_dump 008
+##  
+## chunks 000 to 007 will be skipped, and chunk 008 will be replaced with a new, full chunk, and the process
+## will continue on from there.
+##  
+## Internally the  fetch_all_recs  script uses the SolrMarc script  hathifetch  which invokes the HathiPlunderer
+## class.  That class will make http GET requests for the bibrecords 20 at a time. The response is a JSON encoded 
+## text file which contains as one of the fields, a MarcXML encoded marc record.  The MarcXML records are extracted,
+## are processed to fix Linked fields (880 fields) and then they are written out as UTF-8 encoded binary Marc records
+## Note:  This process can create illegally large binary Marc records. These illegal records can be handled by 
+## the SolrMarc suite of tools, but if you use other MARC processing tools on these files, they might fail.
+##  
+
+SCRIPTDIR=$( (cd -P $(dirname ${BASH_SOURCE[0]:-$(/bin/pwd)/dummy}) && /bin/pwd) )
+COREDIR=$( dirname $SCRIPTDIR  )
+corename=$( basename $COREDIR )
+DATADIR=$COREDIR/data
+BASEDIR=$( dirname $COREDIR )
+
+# load the shared bash functions log, vlog and Verbose
+. $BASEDIR/bin/outputfuncs.bash
+
+verbose=
+while getopts :v opt
+ do
+      case $opt in
+          v) verbose=-v;;
+      esac
+done
+shift $((OPTIND-1))
+ 
+if [ $# -eq 0 ]
+  then
+    echo ""
+    echo " Usage: `basename $0` file_containing_all_hathi_ids [directory_to_write_to] [start_chunk] [chunksize]"
+    echo "    for help do  `basename $0` --help "
+    echo ""
+    exit $E_BADARGS
+fi
+
+if [[ "$1" == "--help" ]]
+then
+    echo ""
+    echo ""
+    cat $0 | egrep '^##' | sed -e 's/^##/    /' 
+    echo ""
+    echo ""
+    exit -1 
+fi
+
+hathidatafile=$1
+
+output_directory=$2
+if [[ "$output_directory" == "" ]] 
+then
+    output_directory = "./"
+fi
+
+if [[ ! -d "$output_directory" ]]
+then
+    Echo "ERROR: output directory:  $output_directory  doesn't exist,  exiting..."
+    exit -1
+fi
+
+let startchunk=`echo $3 | sed -e 's/^0*//'`+0
+
+let chunksize=$4+0
+if (( $chunksize == 0 ))
+  then
+    let chunksize=50000
+fi
+
+let startoffset=$startchunk*$chunksize
+
+let filesize=`cat $hathidatafile | wc -l`
+
+let start=0
+let fnum=1000
+flab=`echo $fnum | tail -c4`
+while [ $start -lt $startoffset ]
+do
+   Verbose "skipping chunk: $flab at offset: $start"
+   let start+=$chunksize
+   let fnum+=1
+   flab=`echo $fnum | tail -c4`
+done
+
+while [ $start -lt $filesize ]
+do
+   Verbose "fetching chunk: $flab at offset: $start  writing to $output_directory/hathi_$flab.mrc"
+   hathifetch -s $start -n $chunksize $hathidatafile | filterrecords "974r/pd|pdus|world|cc.*" > $output_directory/hathi_$flab.mrc
+   returnval=$?
+   if [ "$returnval" != "0" ] 
+   then 
+        Echo "Error: hathifetch command returned result = $returnval"
+        exit $returnval
+   fi
+   let start+=$chunksize 
+   let fnum+=1 
+   flab=`echo $fnum | tail -c4`
+done

@@ -1,0 +1,42 @@
+#!/bin/bash
+
+SCRIPTDIR=$( (cd -P $(dirname ${BASH_SOURCE[0]:-$(/bin/pwd)/dummy}) && /bin/pwd) )
+corename=hathi
+DATADIR=$SCRIPTDIR/data
+
+# load the shared bash functions log, vlog and Verbose
+. $SCRIPTDIR/outputfuncs.bash $SCRIPTDIR
+
+verbose=
+test=
+aws=0
+index=staging:production
+while getopts :vati: opt
+ do
+      case $opt in
+          v) verbose=-v;;
+          a) aws=1;;
+          i) index=$OPTARG;;
+          t) test=-t;;
+      esac
+done
+shift $((OPTIND-1))
+
+if [[ $aws == "1" ]] ; then 
+    $SCRIPTDIR/check_aws
+    errcode=$?
+    if [[ "$errcode" != 0 ]] ; then 
+        exit "$errcode"
+    fi
+fi
+
+ant -f $SCRIPTDIR/hathifetch_java/build.xml
+
+$SCRIPTDIR/fetch_updates $verbose $test
+
+$SCRIPTDIR/merge_updates $verbose $test
+
+$SCRIPTDIR/upload_updates $verbose $test -i $index
+
+$SCRIPTDIR/clean_up_after_update $verbose $test
+Verbose "Done updating core hathi"

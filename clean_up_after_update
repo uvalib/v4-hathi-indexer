@@ -1,0 +1,66 @@
+#!/bin/bash
+
+SCRIPTDIR=$( (cd -P $(dirname ${BASH_SOURCE[0]:-$(/bin/pwd)/dummy}) && /bin/pwd) )
+COREDIR=$( dirname $SCRIPTDIR  )
+corename=hathi
+DATADIR=$SCRIPTDIR/data
+
+# load the shared bash functions log, vlog and Verbose
+. $SCRIPTDIR/outputfuncs.bash $SCRIPTDIR
+
+verbose=
+force=
+test=
+DATE=`date +%Y%m%d`
+DATEPARM=
+
+while getopts :vftd: opt
+do
+    case $opt in
+        v) verbose=-v;;
+        d) DATE=$OPTARG ; DATEPARM="-d $DATE" ;;
+        f) force=-f;;
+        t) test=-t;;
+    esac
+done
+shift $((OPTIND-1))
+
+UPDATEDIR=$DATADIR/update
+INPUTDIR=$DATADIR/incoming
+PROCESSEDDIR=$DATADIR/processed
+TOINDEXDIR=$DATADIR/toindex
+INPUTDIR=$DATADIR/incoming
+TMPDIR=$DATADIR/tmp
+
+function cleanup ()
+{
+    dir=$1
+    prefix=$2
+    suffix=$3
+    date=$4 
+    numtokeep=$5
+    numexists=`find "$dir" -maxdepth 1 -regextype posix-egrep  -regex ".*/$prefix[0-9]*$suffix"  | sort | wc -l`
+    numtodelete=$(($numexists-$numtokeep))
+    if [ "$numtodelete" -gt "0" ]
+    then 
+        for file in `find "$dir" -maxdepth 1 -regextype posix-egrep  -regex ".*/$prefix[0-9]*$suffix"  | sort | grep -v "$date" | head -$numtodelete`
+        do
+           Verbose "      Removing file: `basename $file`"
+        #   mv $file $file.deleted
+           if [ "$test" != "-t" ] ; then
+               rm $file
+           fi
+        done
+    fi
+}
+
+Verbose "  deleting old compressed daily updates"
+cleanup "$UPDATEDIR" "hathi_upd_" ".txt.gz" "$DATE" 30
+
+Verbose "  deleting old update new and delete Marc files"
+cleanup "$TMPDIR" "hathi_upd_new_and_del_" ".mrc" "$DATE" 30
+
+Verbose "  deleting old processed files"
+cleanup "$PROCESSEDDIR" "hathi_upd_" ".mrc" "$DATE" 30
+cleanup "$PROCESSEDDIR" "hathi_upd_" ".del" "$DATE" 30
+

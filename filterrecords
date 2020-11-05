@@ -1,0 +1,49 @@
+#! /bin/bash
+# filterrecords
+# Grep for marc records:  selects only those records that contain certain fields or certain values in certain fields.
+# $Id: filterrecords
+
+E_BADARGS=65
+
+scriptdir=$( (cd -P $(dirname $0) && pwd) )
+#define the function
+find_newest_file_matching_pattern_under_directory(){
+    echo $(find $1 -maxdepth 1 -name "$2" -print0 | xargs -0 ls -1 -t | head -1)
+}
+
+marc4j_jar=$( find_newest_file_matching_pattern_under_directory $scriptdir "marc4j*.jar" )
+
+
+if ! [ -p /dev/stdin ]
+then  
+  if [ $# -eq 0 ]
+  then
+    echo "    Usage: `basename $0` [config.properties] ./path/to/marc.mrc "
+    echo "      Note that if the config.properties file is not specified the Jarfile will be searched for"
+    echo "      a file whose name ends with \"config.properties\""
+    echo "    Usage: cat /path/to/big/marcfile.mrc | `basename $0` 'fieldspec/search_string'"
+    echo "      would get the records in the file that have search_string in the fieldspec  (e.g. '245a/Jefferson')" 
+    exit $E_BADARGS
+  fi
+fi
+
+stdin=
+lastarg="${@: -1}"
+if [[ -p /dev/stdin && "$lastarg" != "-" ]]; then
+    stdin=-
+fi
+
+if [[ "${1:0:1}" == "-" ]] 
+then 
+    parm=`echo $1 | sed -e 's/.//'`
+    shift
+    #echo "java -jar $marc4j_jar to_utf8 -notmatches "$parm" $* $stdin" 1>&2
+    java -jar $marc4j_jar to_utf8 -notmatches "$parm" $* $stdin
+else
+    parm=$1
+    shift
+    #echo "java -jar $marc4j_jar to_utf8 -matches "$parm" $* $stdin" 1>&2
+    java -jar $marc4j_jar to_utf8 -matches "$parm" $* $stdin
+fi
+exit 0
+

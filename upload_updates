@@ -1,0 +1,68 @@
+#!/bin/bash
+
+SCRIPTDIR=$( (cd -P $(dirname ${BASH_SOURCE[0]:-$(/bin/pwd)/dummy}) && /bin/pwd) )
+COREDIR=$( dirname $SCRIPTDIR  )
+corename=hathi
+DATADIR=$SCRIPTDIR/data
+
+# load the shared bash functions log, vlog and Verbose
+. $SCRIPTDIR/outputfuncs.bash $SCRIPTDIR
+
+
+verbose=
+force=
+test=
+index=staging:production
+while getopts :vti: opt
+ do
+      case $opt in
+          v) verbose=-v;;
+          i) index=$OPTARG;;
+          t) test=-t;;
+      esac
+done
+shift $((OPTIND-1))
+
+for line in `cat $SCRIPTDIR/cores_to_process`
+do 
+    year=`date "+%Y"`
+    solrname=`echo $line| cut -d '|' -f1`
+    add_bucket=`echo $line| cut -d '|' -f2 | sed -e "s/2020/$year/"`
+    del_bucket=`echo $line| cut -d '|' -f3 | sed -e "s/2020/$year/"`
+
+    if [[ "$index" =~ $solrname ]]; then
+        Verbose "Indexing merged update into core $solrname"
+        # process files into specified index
+
+        TOINDEXDIR=$DATADIR/toindex_$solrname
+
+        for file in `find $TOINDEXDIR -name "*.mrc"`
+        do
+            fname=`basename $file`
+            Verbose "Sending file $fname in directory $TOINDEXDIR for $corename core"
+            froot=`basename $file .mrc`
+            dir=`dirname $file`
+            delfile=$dir/$froot.del
+            if [[ "$test" != "-t" ]] ; then
+                $AWS s3 cp $file $add_bucket 2>&1 | vlog "      "
+                if [[ "$?" == "0" ]]; then
+                    rm $file
+                fi
+                if [ -e $delfile ] ; then
+                    $AWS s3 cp $delfile $del_bucket 2>&1 | vlog "      "
+                    if [[ "$?" == "0" ]]; then
+                        rm $delfile
+                    fi
+                fi
+            else
+                Verbose "$AWS s3 cp $file $add_bucket "
+                if [ -e $delfile ] ; then
+                    Verbose "$AWS s3 cp $delfile $del_bucket"
+                fi
+            fi
+        done
+    else 
+        Verbose "Skipping indexing merged update into core $solrname"
+    fi
+done
+

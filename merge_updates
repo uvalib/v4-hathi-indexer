@@ -1,0 +1,171 @@
+#!/bin/bash
+
+SCRIPTDIR=$( (cd -P $(dirname ${BASH_SOURCE[0]:-$(/bin/pwd)/dummy}) && /bin/pwd) )
+COREDIR=$( dirname $SCRIPTDIR  )
+corename=hathi
+DATADIR=$SCRIPTDIR/data
+
+# load the shared bash functions log, vlog and Verbose
+. $SCRIPTDIR/outputfuncs.bash $SCRIPTDIR
+
+
+verbose=
+force=
+test=
+while getopts :vt opt
+ do
+      case $opt in
+          v) verbose=-v;;
+          t) test=-t;;
+      esac
+done
+shift $((OPTIND-1))
+
+DUMPDIR=$DATADIR/full_dump
+BACKUPDUMPDIR=$DATADIR/full_dump_prev
+UPDATEDIR=$DATADIR/update
+INPUTDIR=$DATADIR/incoming
+PROCESSEDDIR=$DATADIR/processed
+TOINDEXDIR=$DATADIR/toindex
+INPUTDIR=$DATADIR/incoming
+TMPDIR=$DATADIR/tmp
+
+mkdir -p $TOINDEXDIR
+
+#check whether any update files exist
+Verbose "Check whether any update files exist"
+numfiles=`find $INPUTDIR -name 'hathi_upd_[0-9]*.mrc' -print | sort | wc -l`
+if [ "$numfiles" == "0" ]
+then
+    Echo "Warning: zero update files in incoming directory ...  exiting"
+    exit 1
+else
+    Verbose "Number of update files=$numfiles ... proceeding"
+fi
+
+Verbose "Delete temporary merged update and merged delete files"
+tmpupdatefile=$INPUTDIR/hathi_upd_merged.mrc
+rm -f $tmpupdatefile
+tmpdeletefile=$INPUTDIR/hathi_upd_merged.del
+rm -f $tmpdeletefile
+
+Verbose "Take all update files, sort them and then merge them into a single large update file"
+first=1
+lastfiledate=
+for file in `find $INPUTDIR -name 'hathi_upd_[0-9]*.mrc' -print | sort`
+do
+    fname=`basename $file`
+    froot=`basename $file .mrc`
+    dir=`dirname $file`
+    delname=$froot.del
+    delfile=$dir/$froot.del
+        
+    if [ "$first" == "1" ] 
+    then 
+        firstfiledate=`echo $fname | sed -e 's/[^0-9]//g'`
+        Verbose "copying input file $fname to $tmpupdatefile"
+        cp $file $tmpupdatefile
+        cp $delfile $tmpdeletefile
+        first=0
+    else 
+        lastfiledate=_`echo $fname | sed -e 's/[^0-9]//g'`
+        Verbose "Merging input file $fname and $delname into `basename $tmpupdatefile`"
+
+        $SCRIPTDIR/marcupdate -mrc $file -del $delfile $tmpupdatefile > $tmpupdatefile.new
+        mv $tmpupdatefile.new $tmpupdatefile
+        $SCRIPTDIR/marcupdate -mrc $file -del $delfile $tmpdeletefile > $tmpdeletefile.new
+        mv $tmpdeletefile.new $tmpdeletefile
+    fi
+done
+
+updatefile=$TOINDEXDIR/hathi_upd_merged_$firstfiledate$lastfiledate.mrc
+updatedelfile=$TOINDEXDIR/hathi_upd_merged_$firstfiledate$lastfiledate.del
+
+Verbose "Creating input files `basename $updatefile` and `basename $updatedelfile`"
+mv $tmpupdatefile $updatefile
+mv $tmpdeletefile $updatedelfile
+
+if [ -e $updatefile ]
+then
+    if [ -s $updatefile ]
+    then
+        base=`basename $updatefile`
+        Verbose "Merged input file $base exists, continuing..."
+    else
+        Echo "Warning: Merged update file is size 0 bytes ...  exiting"
+        exit 3
+    fi
+else
+    Echo "Warning: Merged update file does not exist ...  exiting"
+    exit 4
+fi
+
+#now process each of the full dump files with the single merged update file
+
+endId=000000000
+
+for file in $DUMPDIR/*.mrc 
+do
+    file0=`dirname $file`
+    filebase=`basename $file`
+    Verbose "Backing up file $filebase"
+    cp $file $BACKUPDUMPDIR
+    startId=$endId
+    file1=`echo $filebase | sed -e 's/\([^0-9]*\)[0-9]*.*/\1/'`
+    file2=`echo $filebase | sed -e 's/[^0-9]*0\?0\?\([0-9]*\).*/\1/'`
+    file3=`echo $filebase | sed -e 's/[^0-9]*[0-9]*\(.*\)/\1/'`
+    #echo $filebase   $file0   $file1   $file2   $file3
+    file2=`echo $((file2+1001)) | sed -e 's/.\(...\)/\1/'`
+    nextfile=$file0/$file1$file2$file3
+    len=`head -c 5 $nextfile 2> /dev/null`
+    if [ $? != 0 ] 
+        then
+            endId=9999999999
+        else
+            endId=`head -c $len $nextfile | $SCRIPTDIR/getrecord -id`
+    fi
+    #echo $file  $startId  $endId
+    Verbose "Updating file $filebase based on hathi_upd_merged startID=$startId  endID=$endId"
+    #Verbose "marcupdate -min $startId -max $endId -mrc $updatefile -del $updatedelfile $file > $file.updated"
+    $SCRIPTDIR/marcupdate -min $startId -max $endId -mrc $updatefile -del $updatedelfile $file > $file.updated
+    returncode=$?
+    if [ "$returncode" != "0" ] 
+    then
+        Echo "ERROR: Error code $returncode return from marcupdate, exiting before I break things"
+        exit 2 
+    fi
+    if [ -s $file.updated ]
+    then 
+        mv $file.updated $file
+    else
+        Echo "ERROR: Zero size file produced, exiting before I break things"
+        exit 2
+    fi
+done
+
+for file in `find $INPUTDIR -name 'hathi_upd_*.mrc' -print | sort`
+do 
+    filebase=`basename $file`
+    Verbose "moving updatefile $filebase to processed directory"
+    mv $file $PROCESSEDDIR
+done
+
+for file in `find $INPUTDIR -name 'hathi_upd_*.del' -print | sort`
+do 
+    filebase=`basename $file`
+    Verbose "Moving updatefile $filebase to processed directory"
+    mv $file $PROCESSEDDIR
+done
+
+Verbose "Update has been merged into full record dump, now copying it to the index directories"
+for line in `cat $SCRIPTDIR/cores_to_process`
+do 
+    #echo "LINE= " $line " END"
+    indexname=`echo $line| cut -d'|' -f1`
+    mkdir ${TOINDEXDIR}_$indexname 2> /dev/null
+    cp -l $TOINDEXDIR/*.{mrc,del} ${TOINDEXDIR}_$indexname
+done
+
+Verbose "Delete the merged update and delete files"
+rm $updatefile $updatedelfile
+

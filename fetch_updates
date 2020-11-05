@@ -1,0 +1,115 @@
+#!/bin/bash
+
+SCRIPTDIR=$( (cd -P $(dirname ${BASH_SOURCE[0]:-$(/bin/pwd)/dummy}) && /bin/pwd) )
+COREDIR=$( dirname $SCRIPTDIR  )
+corename=hathi
+DATADIR=$SCRIPTDIR/data
+
+# load the shared bash functions log, vlog and Verbose
+. $SCRIPTDIR/outputfuncs.bash $SCRIPTDIR
+
+
+verbose=
+force=
+test=
+while getopts :vt opt
+ do
+      case $opt in
+          v) verbose=-v;;
+          t) test=-t;;
+      esac
+done
+shift $((OPTIND-1))
+
+DUMPDIR=$DATADIR/full_dump
+BACKUPDUMPDIR=$DATADIR/full_dump_prev
+UPDATEDIR=$DATADIR/update
+INPUTDIR=$DATADIR/incoming
+PROCESSEDDIR=$DATADIR/processed
+TMPDIR=$DATADIR/tmp
+
+mkdir -p $DUMPDIR $BACKUPDUMPDIR $UPDATEDIR $INPUTDIR $PROCESSEDDIR $TMPDIR 
+
+lastdate=
+# Get the date of the last file that was processed
+for file in `find $PROCESSEDDIR -name hathi_upd_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].mrc | sort`
+do
+    lastfile=$file
+    lastdate=`echo $file | sed -e 's/.*hathi_upd_\([0-9]*\).mrc/\1/g'` 
+done
+
+today=`date "+%Y%m%d"`
+yesterday=`date --date "$today - 1 day" "+%Y%m%d"`
+YEAR=`date "+%Y"`
+
+# No updates found in processed, set last updated to last day of the previous month
+if [ "$lastdate" == "" ]
+then
+    dayofmonth=`date "+%d"`
+    lastdate=`date --date "- $dayofmonth days" "+%Y%m%d"`
+    Verbose "No updates found in processed, set lastupdated to $lastdate"
+fi
+
+# Scrape website to create map from filename to URL for Hathifiles   (Ick)
+Verbose "Scrape website to create maps from update file name to URL"
+curl -s "https://www.hathitrust.org/hathifiles" > $DATADIR/hathifiles.html
+java -jar $SCRIPTDIR/jtidy-r938.jar -config $SCRIPTDIR/jtidy.config  $DATADIR/hathifiles.html | 
+      egrep "/filebrowser/download" | egrep "hathi_upd_" | 
+      sed -e 's/.*href="\([^"]*\)">\([^<]*\).*/\2\t\1/'  > $DATADIR/hathifiles_urls.txt
+
+curdate=$lastdate
+
+while [[ "$curdate" != "$today" ]]
+do  
+    curdate=`date --date "$curdate + 1 day" "+%Y%m%d"`
+    #updateurl="http://www.hathitrust.org/files/hathifiles/hathi_upd_$curdate.txt.gz"
+    #updateurl="https://www.hathitrust.org/sites/www.hathitrust.org/files/hathifiles/hathi_upd_$curdate.txt.gz"
+    updateroot=hathi_upd_${curdate}.txt.gz
+    updateurl=`cat $DATADIR/hathifiles_urls.txt | fgrep "$updateroot" | cut -f 2`
+    updatefile="$UPDATEDIR/$updateroot"
+    inputfile="$TMPDIR/hathi_upd_new_and_del_$curdate.mrc"
+    newrecfile="$INPUTDIR/hathi_upd_$curdate.mrc"
+    deletefile="$INPUTDIR/hathi_upd_$curdate.del"
+
+    cangetfile=
+    # check whether the update file pointed at by $updateurl get be retrieved
+    if [ "$updateurl" != "" ]; then
+        cangetfile=`curl -I -s --write-out %{http_code} $updateurl | egrep "200 OK"`
+    fi
+
+    if [ "$cangetfile" == "" ] 
+    then
+        if [[ "$curdate" == "$yesterday" || "$curdate" == "$today"  ]]
+        then
+            Verbose "Warning: Cannot get file $updateroot yet, try later"
+            exit 1
+        else
+            # file being requested can't be retrieved, but it is more thatn one day old, so skip it and continue
+            Verbose" Warning: Cannot get file $updateroot, skipping it."
+            continue
+        fi
+    fi
+
+    Verbose "Fetching Update File URL: $updatefile" 
+    curl -s $updateurl > $updatefile 
+
+    Verbose "Building Record Update List"
+    # record update list is anything marked allow, plus anything marked deny for which we have a record in the record cache.
+    zcat $updatefile | cut -f1-4 | sort -k 4,4 | egrep 'allow' | cut -f4 | uniq > $TMPDIR/allow_pull_list.txt
+
+    zcat $updatefile | cut -f1-4 | sort -k 4,4 | egrep 'deny' | cut -f4 | uniq > $TMPDIR/del_possible_list.txt
+        
+    cat $DUMPDIR/hathi_*.mrc | $SCRIPTDIR/getrecord $TMPDIR/del_possible_list.txt | $SCRIPTDIR/getrecord -id > $TMPDIR/del_pull_list.txt
+    
+    cat $TMPDIR/allow_pull_list.txt $TMPDIR/del_pull_list.txt | sort | uniq > $TMPDIR/pull_list.txt
+    
+    Verbose "Now fetch all of the records in the record update list to tmp/`basename $inputfile`"
+    $SCRIPTDIR/hathifetch $TMPDIR/pull_list.txt > $inputfile 
+    
+    Verbose "Now split input file into new/updated records, and deletes"
+        
+    cat $inputfile | $SCRIPTDIR/filterrecords "974r/^(pd|pdus|world|cc.*)" -oversize > $newrecfile 
+    cat $inputfile | $SCRIPTDIR/filterrecords "-974r/^(pd|pdus|world|cc.*)" -oversize | $SCRIPTDIR/getrecord -id > $deletefile 
+
+done
+
