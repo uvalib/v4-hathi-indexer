@@ -30,7 +30,15 @@ if [[ $aws == "1" ]] ; then
     fi
 fi
 
-ant -f $SCRIPTDIR/hathifetch_java/build.xml
+ant -f $SCRIPTDIR/hathifetch_java/build.xml 2>&1 | vlog
+errcode=$?
+
+if [[ $errcode == '0' || -e hathifetch_java/hathifetch.jar ]] ; then
+    echo keep going
+else
+    Echo "Error: unable to build or find the jar file for fetching records from HathiTrust"
+    exit $errcode
+fi
 
 $SCRIPTDIR/fetch_updates $verbose $test
 

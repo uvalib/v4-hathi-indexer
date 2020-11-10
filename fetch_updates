@@ -40,6 +40,11 @@ if [ $? -eq 0 ]; then
 fi
 
 lastdate=
+has_full_dump=0
+if [[ `find $DUMPDIR -name "*.mrc" | wc -l | awk '{print $1}'` != 0 ]] ; then
+    has_full_dump=1
+fi
+
 # Get the date of the last file that was processed
 for file in `find $PROCESSEDDIR -name hathi_upd_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].mrc | sort`
 do
@@ -74,7 +79,7 @@ do
     #updateurl="http://www.hathitrust.org/files/hathifiles/hathi_upd_$curdate.txt.gz"
     #updateurl="https://www.hathitrust.org/sites/www.hathitrust.org/files/hathifiles/hathi_upd_$curdate.txt.gz"
     updateroot=hathi_upd_${curdate}.txt.gz
-    updateurl=`cat $DATADIR/hathifiles_urls.txt | fgrep "$updateroot" | cut -f 2`
+    updateurl=`cat $DATADIR/hathifiles_urls.txt | fgrep "$updateroot" | cut -f 2 -d ' '`
     updatefile="$UPDATEDIR/$updateroot"
     inputfile="$TMPDIR/hathi_upd_new_and_del_$curdate.mrc"
     newrecfile="$INPUTDIR/hathi_upd_$curdate.mrc"
@@ -108,10 +113,14 @@ do
 
     gunzip -c $updatefile | cut -f1-4 | sort -k 4,4 | egrep 'deny' | cut -f4 | uniq > $TMPDIR/del_possible_list.txt
         
-    cat $DUMPDIR/hathi_*.mrc | $SCRIPTDIR/getrecord $TMPDIR/del_possible_list.txt | $SCRIPTDIR/getrecord -id > $TMPDIR/del_pull_list.txt
+    if [[ "$has_full_dump" != "0" ]] ; then
+        cat $DUMPDIR/hathi_*.mrc | $SCRIPTDIR/getrecord $TMPDIR/del_possible_list.txt | $SCRIPTDIR/getrecord -id > $TMPDIR/del_pull_list.txt
     
-    cat $TMPDIR/allow_pull_list.txt $TMPDIR/del_pull_list.txt | sort | uniq > $TMPDIR/pull_list.txt
-    
+        cat $TMPDIR/allow_pull_list.txt $TMPDIR/del_pull_list.txt | sort | uniq > $TMPDIR/pull_list.txt
+    else
+        cat $TMPDIR/allow_pull_list.txt $TMPDIR/del_possible_list.txt | sort | uniq > $TMPDIR/pull_list.txt
+    fi 
+
     Verbose "Now fetch all of the records in the record update list to tmp/`basename $inputfile`"
     $SCRIPTDIR/hathifetch $TMPDIR/pull_list.txt > $inputfile 
     
