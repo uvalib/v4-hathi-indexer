@@ -35,6 +35,7 @@ do
         # process files into specified index
 
         TOINDEXDIR=$DATADIR/toindex_$solrname
+        mkdir -p $TOINDEXDIR
 
         for file in `find $TOINDEXDIR -name "*.mrc"`
         do

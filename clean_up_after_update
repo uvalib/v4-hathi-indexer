@@ -39,11 +39,11 @@ function cleanup ()
     suffix=$3
     date=$4 
     numtokeep=$5
-    numexists=`find "$dir" -maxdepth 1 -regextype posix-egrep  -regex ".*/$prefix[0-9]*$suffix"  | sort | wc -l`
+    numexists=`find "$dir" -maxdepth 1 -regex ".*/$prefix[0-9]*$suffix"  | sort | wc -l`
     numtodelete=$(($numexists-$numtokeep))
     if [ "$numtodelete" -gt "0" ]
     then 
-        for file in `find "$dir" -maxdepth 1 -regextype posix-egrep  -regex ".*/$prefix[0-9]*$suffix"  | sort | grep -v "$date" | head -$numtodelete`
+        for file in `find "$dir" -maxdepth 1 -regex ".*/$prefix[0-9]*$suffix"  | sort | grep -v "$date" | head -$numtodelete`
         do
            Verbose "      Removing file: `basename $file`"
         #   mv $file $file.deleted

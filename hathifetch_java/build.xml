@@ -2,8 +2,6 @@
 <project basedir="." default="build" name="HathiFetch">
     <property environment="env"/>
     <property name="debuglevel" value="source,lines,vars"/>
-    <property name="target" value="1.7"/>
-    <property name="source" value="1.7"/>
     <path id="HathiFetch.classpath">
         <fileset dir="..">
             <include name="marc*.jar" />
@@ -21,7 +19,7 @@
 
     <target depends="init" name="compile">
         <echo message="${ant.project.name}: ${ant.file}"/>
-        <javac debug="true" debuglevel="${debuglevel}" destdir="bin" includeantruntime="false" source="${source}" target="${target}">
+        <javac debug="true" debuglevel="${debuglevel}" destdir="bin" includeantruntime="false">
             <src path="src"/>
             <classpath refid="HathiFetch.classpath"/>
         </javac>

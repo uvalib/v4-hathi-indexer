@@ -46,7 +46,7 @@ YEAR=`date "+%Y"`
 if [ "$lastdate" == "" ]
 then
     dayofmonth=`date "+%d"`
-    lastdate=`date --date "- $dayofmonth days" "+%Y%m%d"`
+    lastdate=`date --date "$dayofmonth days ago" "+%Y%m%d"`
     Verbose "No updates found in processed, set lastupdated to $lastdate"
 fi
 
