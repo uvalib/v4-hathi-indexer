@@ -45,20 +45,20 @@ do
             dir=`dirname $file`
             delfile=$dir/$froot.del
             if [[ "$test" != "-t" ]] ; then
-                $AWS s3 cp $file $add_bucket 2>&1 | vlog "      "
+                aws s3 cp $file $add_bucket 2>&1 | vlog "      "
                 if [[ "$?" == "0" ]]; then
                     rm $file
                 fi
                 if [ -e $delfile ] ; then
-                    $AWS s3 cp $delfile $del_bucket 2>&1 | vlog "      "
+                    aws s3 cp $delfile $del_bucket 2>&1 | vlog "      "
                     if [[ "$?" == "0" ]]; then
                         rm $delfile
                     fi
                 fi
             else
-                Verbose "$AWS s3 cp $file $add_bucket "
+                Verbose "aws s3 cp $file $add_bucket "
                 if [ -e $delfile ] ; then
-                    Verbose "$AWS s3 cp $delfile $del_bucket"
+                    Verbose "aws s3 cp $delfile $del_bucket"
                 fi
             fi
         done
