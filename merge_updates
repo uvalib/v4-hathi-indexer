@@ -34,7 +34,7 @@ mkdir -p $TOINDEXDIR
 
 #check whether any update files exist
 Verbose "Check whether any update files exist"
-numfiles=`find $INPUTDIR -name 'hathi_upd_[0-9]*.mrc' -print | sort | wc -l`
+numfiles=`find $INPUTDIR -name 'hathi_upd_[0-9]*.mrc' -print | sort | wc -l | awk '{print $1}'`
 if [ "$numfiles" == "0" ]
 then
     Echo "Warning: zero update files in incoming directory ...  exiting"
@@ -101,7 +101,7 @@ else
 fi
 
 #now process each of the full dump files with the single merged update file
-full_dump_files=`find $DUMPDIR -name "*.mrc" | wc -l`
+full_dump_files=`find $DUMPDIR -name "*.mrc" | wc -l | awk '{print $1}'`
 
 if [[ "$full_dump_files" != "0" ]] ; then
 
@@ -167,7 +167,7 @@ do
     #echo "LINE= " $line " END"
     indexname=`echo $line| cut -d'|' -f1`
     mkdir ${TOINDEXDIR}_$indexname 2> /dev/null
-    cp -l $TOINDEXDIR/*.{mrc,del} ${TOINDEXDIR}_$indexname
+    ln $TOINDEXDIR/*.{mrc,del} ${TOINDEXDIR}_$indexname
 done
 
 Verbose "Delete the merged update and delete files"

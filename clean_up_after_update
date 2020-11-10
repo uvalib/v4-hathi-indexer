@@ -39,7 +39,7 @@ function cleanup ()
     suffix=$3
     date=$4 
     numtokeep=$5
-    numexists=`find "$dir" -maxdepth 1 -regex ".*/$prefix[0-9]*$suffix"  | sort | wc -l`
+    numexists=`find "$dir" -maxdepth 1 -regex ".*/$prefix[0-9]*$suffix"  | sort | wc -l | awk '{print $1}'`
     numtodelete=$(($numexists-$numtokeep))
     if [ "$numtodelete" -gt "0" ]
     then 
