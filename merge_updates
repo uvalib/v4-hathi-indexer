@@ -167,7 +167,7 @@ do
     #echo "LINE= " $line " END"
     indexname=`echo $line| cut -d'|' -f1`
     mkdir ${TOINDEXDIR}_$indexname 2> /dev/null
-    ln $TOINDEXDIR/*.{mrc,del} ${TOINDEXDIR}_$indexname
+    cp $TOINDEXDIR/*.{mrc,del} ${TOINDEXDIR}_$indexname
 done
 
 Verbose "Delete the merged update and delete files"
