@@ -27,8 +27,8 @@ for line in `cat $SCRIPTDIR/cores_to_process`
 do 
     year=`date "+%Y"`
     solrname=`echo $line| cut -d '|' -f1`
-    add_bucket=`echo $line| cut -d '|' -f2 | sed -e "s/2020/$year/"`
-    del_bucket=`echo $line| cut -d '|' -f3 | sed -e "s/2020/$year/"`
+    add_bucket=`echo $line| cut -d '|' -f2 | sed -e "s/YYYY/$year/"`
+    del_bucket=`echo $line| cut -d '|' -f3 | sed -e "s/YYYY/$year/"`
 
     if [[ "$index" =~ $solrname ]]; then
         Verbose "Indexing merged update into core $solrname"

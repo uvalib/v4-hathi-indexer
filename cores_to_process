@@ -1,2 +1,2 @@
-staging|s3://virgo4-ingest-staging-inbound/hathi-update/2020|s3://virgo4-ingest-staging-inbound/doc-delete/default/2020
-production|s3://virgo4-ingest-production-inbound/hathi-update/2020|s3://virgo4-ingest-production-inbound/doc-delete/default/2020
+staging|s3://virgo4-ingest-staging-inbound/hathi-update/YYYY/|s3://virgo4-ingest-staging-inbound/doc-delete/default/YYYY/
+production|s3://virgo4-ingest-production-inbound/hathi-update/YYYY/|s3://virgo4-ingest-production-inbound/doc-delete/default/YYYY/
