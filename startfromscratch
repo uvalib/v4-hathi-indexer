@@ -1,13 +1,11 @@
 #!/bin/bash
 
 SCRIPTDIR=$( (cd -P $(dirname ${BASH_SOURCE[0]:-$(/bin/pwd)/dummy}) && /bin/pwd) )
-COREDIR=$( dirname $SCRIPTDIR  )
-corename=$( basename $COREDIR )
-DATADIR=$COREDIR/data
-BASEDIR=$( dirname $COREDIR )
+corename=hathi
+DATADIR=$SCRIPTDIR/data
 
 # load the shared bash functions log, vlog and Verbose
-. $BASEDIR/bin/outputfuncs.bash
+. $SCRIPTDIR/outputfuncs.bash $SCRIPTDIR
 
 verbose=
 force=
@@ -71,9 +69,14 @@ zcat $DATADIR/hathi_full_${start_of_month}.txt.gz | cut -f 2,4 | egrep '^allow' 
 Verbose "Now fetch all of the MARC record specified in the list of record numbers"
 $SCRIPTDIR/fetch_all_recs $verbose $DATADIR/hathi_full_recordnumber.txt $DUMPDIR
 
+Verbose "Now fetch all update files that can be fetched from the beginning of the month, to now"
+# NOTE the parameter -t below is intentional (rather than passing $test) to ensure the update steps only
+#      affect the full dump without uploading any records to the s3 buckets
+$SCRIPTDIR/updateifnewer $verbose -t
+
 Verbose "Done fetching initial records for Hathi Trust Core, Ready for index_all"
 if [[ "$test" != "-t" ]]; then
-    $SCRIPTDIR/index_in_chunks $verbose
+    $SCRIPTDIR/upload_all_records $verbose
 fi
 
 Verbose "Done initializing hathi data cache and core"

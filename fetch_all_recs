@@ -39,13 +39,11 @@
 ##  
 
 SCRIPTDIR=$( (cd -P $(dirname ${BASH_SOURCE[0]:-$(/bin/pwd)/dummy}) && /bin/pwd) )
-COREDIR=$( dirname $SCRIPTDIR  )
-corename=$( basename $COREDIR )
+corename=hathi
 DATADIR=$COREDIR/data
-BASEDIR=$( dirname $COREDIR )
 
 # load the shared bash functions log, vlog and Verbose
-. $BASEDIR/bin/outputfuncs.bash
+. $SCRIPTDIR/outputfuncs.bash $SCRIPTDIR
 
 verbose=
 while getopts :v opt
@@ -115,7 +113,7 @@ done
 while [ $start -lt $filesize ]
 do
    Verbose "fetching chunk: $flab at offset: $start  writing to $output_directory/hathi_$flab.mrc"
-   hathifetch -s $start -n $chunksize $hathidatafile | filterrecords "974r/pd|pdus|world|cc.*" > $output_directory/hathi_$flab.mrc
+   $SCRIPTDIR/hathifetch -s $start -n $chunksize $hathidatafile | $SCRIPTDIR/filterrecords "974r/^(pd|pdus|world|cc.*)" -oversize > $output_directory/hathi_$flab.mrc
    returnval=$?
    if [ "$returnval" != "0" ] 
    then 

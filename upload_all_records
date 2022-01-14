@@ -31,39 +31,22 @@ do
     del_bucket=`echo $line| cut -d '|' -f3 | sed -e "s/YYYY/$year/"`
 
     if [[ "$index" =~ $solrname ]]; then
-        Verbose "Indexing merged update into core $solrname"
+        Verbose "Indexing all records into core $solrname"
         # process files into specified index
 
-        TOINDEXDIR=$DATADIR/toindex_$solrname
-        mkdir -p $TOINDEXDIR
+        FULLDUMPDIR=$DATADIR/full_dump
 
-        for file in `find $TOINDEXDIR -name "*.mrc"`
+        for file in `find $FULLDUMPDIR -name "*.mrc"`
         do
-            fname=`basename $file`
-            Verbose "Sending file $fname in directory $TOINDEXDIR for $corename core"
-            froot=`basename $file .mrc`
-            dir=`dirname $file`
-            delfile=$dir/$froot.ids
+            Verbose "Sending full dump portion $file to $corename core"
             if [[ "$test" != "-t" ]] ; then
                 aws s3 cp $file $add_bucket 2>&1 | vlog "      "
-                if [[ "$?" == "0" ]]; then
-                    rm $file
-                fi
-                if [ -e $delfile ] ; then
-                    aws s3 cp $delfile $del_bucket 2>&1 | vlog "      "
-                    if [[ "$?" == "0" ]]; then
-                        rm $delfile
-                    fi
-                fi
             else
                 Verbose "aws s3 cp $file $add_bucket "
-                if [ -e $delfile ] ; then
-                    Verbose "aws s3 cp $delfile $del_bucket"
-                fi
             fi
         done
     else 
-        Verbose "Skipping indexing merged update into core $solrname"
+        Verbose "Skipping indexing all records into core $solrname"
     fi
 done
 
