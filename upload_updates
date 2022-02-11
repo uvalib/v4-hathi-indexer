@@ -41,25 +41,29 @@ do
         do
             fname=`basename $file`
             Verbose "Sending file $fname in directory $TOINDEXDIR for $corename core"
-            froot=`basename $file .mrc`
-            dir=`dirname $file`
-            delfile=$dir/$froot.ids
             if [[ "$test" != "-t" ]] ; then
                 aws s3 cp $file $add_bucket 2>&1 | vlog "      "
                 if [[ "$?" == "0" ]]; then
                     rm $file
                 fi
-                if [ -e $delfile ] ; then
-                    aws s3 cp $delfile $del_bucket 2>&1 | vlog "      "
-                    if [[ "$?" == "0" ]]; then
-                        rm $delfile
-                    fi
-                fi
             else
                 Verbose "aws s3 cp $file $add_bucket "
-                if [ -e $delfile ] ; then
-                    Verbose "aws s3 cp $delfile $del_bucket"
+            fi
+        done
+
+        for file in `find $TOINDEXDIR -name "*.del"`
+        do
+            fname=`basename $file`
+            Verbose "Sending file $fname in directory $TOINDEXDIR for $corename core"
+            froot=`basename $file .del`
+            idsfile=$froot.ids
+            if [[ "$test" != "-t" ]] ; then
+                aws s3 cp $file $del_bucket/$idsfile 2>&1 | vlog "      "
+                if [[ "$?" == "0" ]]; then
+                    rm $file
                 fi
+            else
+                Verbose "aws s3 cp $file $del_bucket/$idsfile"
             fi
         done
     else 
