@@ -323,25 +323,37 @@ public class HathiPlunderer extends InputStream
             in = httpConn.getInputStream();
             BufferedInputStream bis = new BufferedInputStream(in);
             
+            int total_read = 0;
             int read = 0;
-            int bufSize = 512;
+            int bufSize = 1024;
             byte[] buffer = new byte[bufSize];
 
             boolean badMojo = false;
             while(true)
             {
                 read = bis.read(buffer);
-                if (read != -1 && (badMojo || (buffer[0] == 10 && buffer[1] == 10 && buffer[2] == 60 && buffer[3] == 98)))
+                if (total_read == 0) 
                 {
+                    int i = 0;
+                    // look for html -like error messages at the beginning of the json response
+                    while (i < buffer.length && buffer[i] == 10)
+                    {
+                        //skip over newlines
+                        i++;
+                    }
+                    // look for <br at the start of the response
+                    if (read != -1 && (badMojo || (buffer[i] == 60 && buffer[i+1] == 98 && buffer[i+2] == 114)))
+                    {
                     String bufStr = new String(buffer);
                     if (bufStr.contains("Fatal error</b>"))
                     {
                         return(-1);
                     }
-                    else if (bufStr.contains("{\"recordnumber:"))
+                        else if (numToFetch == 1 && bufStr.contains("{\"recordnumber:"))
                     {
                         int offset = bufStr.indexOf("{\"recordnumber:");
                         os.write(buffer, offset, read-offset);
+                            total_read += read - offset;
                         badMojo = false;
                         continue;
                     }
@@ -355,18 +367,22 @@ public class HathiPlunderer extends InputStream
                         continue;
                     }
                 }
+                }
                 if(read==-1)
                 {
                     break;
                 }
+                total_read += read;
                 os.write(buffer, 0, read);
             }
         } catch (MalformedURLException e) {
             // DEBUG
-//            Log.e("DEBUG: ", e.toString());
+            if (debug)  System.err.println("DEBUG: " + e.toString());
         } catch (IOException e) {
             // DEBUG
-//            Log.e("DEBUG: ", e.toString());
+            if (debug)  System.err.println("DEBUG: " + e.toString());
+        } catch (Exception e) {
+            if (debug)  System.err.println("DEBUG: " + e.toString());
         } 
         finally {
             httpConn.disconnect();
@@ -506,6 +522,7 @@ public class HathiPlunderer extends InputStream
             else if (args[0].equals("-g"))
             {
                 fetchOne = args[1];
+                skip = 2;
             }
             else if (args[0].equals("-v"))
             {

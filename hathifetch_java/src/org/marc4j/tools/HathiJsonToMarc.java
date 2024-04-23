@@ -258,13 +258,19 @@ public class HathiJsonToMarc implements MarcReader
             {
                 mname = parser.getMemberName();
                 value = parser.getMemberValue();
-                if (JsonParser.isQuoted(value))
-                {
-                    value = JsonParser.stripQuotes(value);
-                }
-                value = value.replaceAll("⁄", "/");
                 if (mname.equals("marc-xml"))
                 {
+                    if (value.equals("null"))
+                    {
+                        // hathi record contains no marc-xml record
+                        parserCode = parser.next();
+                        continue;
+                    }
+                    else if (JsonParser.isQuoted(value))
+                    {
+                        value = JsonParser.stripQuotes(value);
+                    }
+                    value = value.replaceAll("⁄", "/");
                     String marcxml = value.replaceFirst("<[?][^?]*[?]><collection[^>]*>", "");
                     marcxml = marcxml.replaceFirst("</collection>", "");
                     try
