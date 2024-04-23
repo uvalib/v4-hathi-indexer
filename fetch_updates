@@ -66,10 +66,9 @@ fi
 
 # Scrape website to create map from filename to URL for Hathifiles   (Ick)
 Verbose "Scrape website to create maps from update file name to URL"
-curl -s "https://www.hathitrust.org/hathifiles" > $DATADIR/hathifiles.html
+curl -L -s "https://www.hathitrust.org/hathifiles" > $DATADIR/hathifiles.html
 java -jar $SCRIPTDIR/jtidy-r938.jar -config $SCRIPTDIR/jtidy.config  $DATADIR/hathifiles.html | 
-      egrep "/filebrowser/download" | egrep "hathi_upd_" | 
-      sed -e 's/.*href="\([^"]*\)">\([^<]*\).*/\2 \1/'  > $DATADIR/hathifiles_urls.txt
+      egrep "hathi_upd_" | tr "'" '"' |  sed -e 's/.*href="\([^"]*\)">\([^<]*\).*/\2 \1/' > $DATADIR/hathifiles_urls.txt
 
 curdate=$lastdate
 
