@@ -47,6 +47,17 @@ start_of_month=`date "+%Y%m01"`
 full_dump_url="https://www.hathitrust.org/sites/www.hathitrust.org/files/hathifiles/hathi_full_${start_of_month}.txt.gz"
 full_dump_file="$DATADIR/hathi_full_${start_of_month}.txt.gz"
 
+ant -f $SCRIPTDIR/hathifetch_java/build.xml 2>&1 | vlog
+errcode=$?
+
+E_NOT_FOUND=127
+
+if [[ $errcode != '0' && ! -e hathifetch_java/hathifetch.jar ]] ; then
+    Echo "Error: unable to build or find the jar file for fetching records from HathiTrust"
+    exit E_NOT_FOUND
+fi
+
+
 if [[ ! -e $full_dump_file ]] ; then
 
     # check whether the update file pointed at by $updateurl get be retrieved
