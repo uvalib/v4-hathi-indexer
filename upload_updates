@@ -58,12 +58,12 @@ do
             froot=`basename $file .del`
             idsfile=$froot.ids
             if [[ "$test" != "-t" ]] ; then
-                aws s3 cp $file $del_bucket/$idsfile 2>&1 | vlog "      "
+                aws s3 cp $file ${del_bucket}$idsfile 2>&1 | vlog "      "
                 if [[ "$?" == "0" ]]; then
                     rm $file
                 fi
             else
-                Verbose "aws s3 cp $file $del_bucket/$idsfile"
+                Verbose "aws s3 cp $file ${del_bucket}$idsfile"
             fi
         done
     else 
